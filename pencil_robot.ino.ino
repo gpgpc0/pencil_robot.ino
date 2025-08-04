@@ -22,8 +22,9 @@
 /** @def
    オプション
 */
+#define LENGTH 200 //腕の一辺の長さ115mm
 #define INTERVAL 0.5 //線の間隔1=0.5cm 0.2=1mm
-#define INITIAL 115//初期座標(115mm,115mm)
+#define INITIAL (115.0 * LENGTH / 115.0)//初期座標(115mm,115mm)
 #define INITIAL_DEGREE 375 //90degree 1450 //初期角度
 #define PULSE_MAX 2200 //最大パルス幅
 #define PULSE_MIN 700 //最小パルス幅
@@ -31,7 +32,6 @@
 #define SV2_PIN 6
 #define SW_PIN 7
 #define START_PIN 8
-#define LENGTH 200 //腕の一辺の長さ115mm
 
 /**二次元座標*/
 typedef struct {
