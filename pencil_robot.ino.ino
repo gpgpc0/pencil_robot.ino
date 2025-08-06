@@ -22,10 +22,10 @@
 /** @def
    オプション
 */
-#define LENGTH 200 //腕の一辺の長さ115mm
-#define INTERVAL 0.5 //線の間隔1=0.5cm 0.2=1mm
-#define INITIAL (115.0 * LENGTH / 115.0)//初期座標(115mm,115mm)
-#define INITIAL_DEGREE 375 //90degree 1450 //初期角度
+#define LENGTH 115 //腕の一辺の長さ115mm chenge
+#define INTERVAL 0.6 //線の間隔1=0.5cm 0.2=1mm chenge
+#define INITIAL 115//初期座標(115mm,115mm) chenge
+#define INITIAL_DEGREE 375 //90degree 1450 //初期角度 chenge
 #define PULSE_MAX 2200 //最大パルス幅
 #define PULSE_MIN 700 //最小パルス幅
 #define SV1_PIN 5
@@ -40,13 +40,11 @@ typedef struct {
 } vector2;
 
 /**サーボ初期設定*/
-unsigned int degree = 0;
+float degree = 0;
 VarSpeedServo sv1, sv2;
 bool wire = 0;
 long previousTime = 0;
 
-/**直線非計算式用定数*/
-int i1 = 1000, i2 = 1200;//100
 /**
    @brief 範囲変換
    @details この関数はxの範囲をin_min～in_outからout_min～out_maxに変換してくれる関数です@n
@@ -107,9 +105,20 @@ vector2 wireVector(double d) {
 double writeSV(int L, int d, int sv, bool iswire) {
   double theta = radians(d);
   vector2 vector = (iswire == true) ? wireVector(theta) : archimedesVector(theta, INTERVAL, INITIAL);
-  double arct = atan2(vector.y, vector.x);//定義域:実数
+  double arct = atan2(vector.y, vector.x);
+  /*
+     arctanと定義域は実数全体なのにarccosは[-1,1]なのでarcc_temp>1となると未定義になってしまう
+  */
   double arcc_temp = sqrt(pow(vector.x, 2) + pow(vector.y, 2)) / (2 * L);
-  double arcc = (arcc_temp <= 1) ? acos(arcc_temp) : 0; //おにぎりの原因 acosの定義域(-1~1)外に値が飛び出ることで未定義となってしまう
+  double arcc = 0;
+  if (iswire) {
+    arcc = 1.57 - 0.0001 * d;
+    if (arcc <= -0.38) {//-0.38
+      arcc = -0.38;
+    }
+  } else {
+    arcc = (arcc_temp <= 1) ? acos(arcc_temp) : 0; //渦巻がおにぎりのようになってしまう原因 acosの定義域(-1~1)外に値が飛び出ることで未定義となってしまう
+  }
   double rad = (sv == 1) ? (arct - arcc) : -(arct + arcc);
   Serial.print("degree:");
   Serial.print(d);
@@ -143,14 +152,16 @@ void setup() {
   pinMode(SV2_PIN, OUTPUT);
   pinMode(SW_PIN, INPUT_PULLUP);
   pinMode(START_PIN, INPUT_PULLUP);
-  sv1.attach(SV1_PIN);//, PULSE_MIN, PULSE_MAX);
-  sv2.attach(SV2_PIN);//, PULSE_MIN, PULSE_MAX);
+  sv1.attach(SV1_PIN);
+  sv2.attach(SV2_PIN);
   wire = !digitalRead(SW_PIN);
+
   if (wire) {
-    sv1.writeMicroseconds(i1);
-    sv2.writeMicroseconds(i2);
+    degree = 10;
+    sv1.writeMicroseconds(writeSV(LENGTH, degree, 1, wire));
+    sv2.writeMicroseconds(writeSV(LENGTH, degree, 2, wire) + INITIAL_DEGREE);
   } else {
-    degree = 20;
+    degree = 0;
     sv1.writeMicroseconds(1450);
     sv2.writeMicroseconds(1450);
   }
@@ -170,17 +181,17 @@ void loop() {
        少したってから上のサーボを動かすとずれが解消された。
        また、直線の長さを調整するためにステップ数と長さの関係を見つける作業が必要となった。
     */
-    if (((wire == 1) ? newdelay(10) : newdelay(1)) && !digitalRead(START_PIN) && ((wire == 1) ? degree <= 563 : true)) {
+    if (((wire == 1) ? newdelay(10) : newdelay(1)) && !digitalRead(START_PIN) ) {
       wire = !digitalRead(SW_PIN);
       //      Serial.print("deg:");
       //      Serial.print(degree);
       //      Serial.print("SV1:");
-      //      Serial.print(writeSV(LENGTH, degree, 1, wire));
+      //      Serial.print((user_map(writeSV(LENGTH, degree, 1, wire), PULSE_MIN, PULSE_MAX, -PI, PI)) * (180 / PI));
       //      Serial.print("SV2:");
-      //      Serial.println(writeSV(LENGTH, degree, 2, wire) + INITIAL_DEGREE);
-      sv1.writeMicroseconds((wire == 0) ? writeSV(LENGTH, degree, 1, wire) : i1 + degree); //90degree=INITIAL_DEGREEMicroSeconds
-      sv2.writeMicroseconds((wire == 0) ? writeSV(LENGTH, degree, 2, wire) + INITIAL_DEGREE : i2 + ((degree <= 40) ? degree * 0 : degree));
-      degree+=1;
+      //      Serial.println(user_map(writeSV(LENGTH, degree, 1, wire) + INITIAL_DEGREE, PULSE_MIN, PULSE_MAX, -PI, PI) * (180 / PI) );
+      sv1.writeMicroseconds(writeSV(LENGTH, degree, 1, wire)); //90degree=INITIAL_DEGREEMicroSeconds
+      sv2.writeMicroseconds(writeSV(LENGTH, degree, 2, wire) + INITIAL_DEGREE);
+      degree += (wire == 1) ? 10 : 1;//0.2 wire
     }
   }
 }
